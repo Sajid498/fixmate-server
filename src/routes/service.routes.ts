@@ -158,117 +158,44 @@ router.get("/", async (_req, res) => {
 });
 
 
-router.get("/", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
+    const serviceId = getServiceId(req.params.id);
+
+    if (!serviceId) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid service ID.",
+      });
+      return;
+    }
+
     const database = getDatabase();
 
-    const escapeRegex = (value: string): string =>
-      value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    const getQueryValue = (value: unknown): string | undefined =>
-      typeof value === "string" ? value.trim() : undefined;
-
-    const search = getQueryValue(req.query.search);
-    const category = getQueryValue(req.query.category);
-    const serviceMode = getQueryValue(req.query.serviceMode);
-    const serviceArea = getQueryValue(req.query.serviceArea);
-    const sort = getQueryValue(req.query.sort) || "newest";
-
-    const requestedPage = Number(req.query.page) || 1;
-    const requestedLimit = Number(req.query.limit) || 12;
-
-    const page = Math.max(1, Math.floor(requestedPage));
-    const limit = Math.min(24, Math.max(1, Math.floor(requestedLimit)));
-    const skip = (page - 1) * limit;
-
-    const filter: Record<string, unknown> = {
+    const service = await database.collection("services").findOne({
+      _id: new ObjectId(serviceId),
       approvalStatus: "approved",
       isAvailable: true,
-    };
+    });
 
-    if (category && serviceCategories.includes(category as (typeof serviceCategories)[number])) {
-      filter.category = category;
+    if (!service) {
+      res.status(404).json({
+        success: false,
+        message: "Service not found or currently unavailable.",
+      });
+      return;
     }
-
-    if (
-      serviceMode &&
-      ["Home Visit", "Shop Drop-off"].includes(serviceMode)
-    ) {
-      filter.serviceMode = serviceMode;
-    }
-
-    if (serviceArea) {
-      filter.serviceArea = {
-        $regex: escapeRegex(serviceArea),
-        $options: "i",
-      };
-    }
-
-    if (search) {
-      const searchRegex = {
-        $regex: escapeRegex(search),
-        $options: "i",
-      };
-
-      filter.$or = [
-        { title: searchRegex },
-        { description: searchRegex },
-        { category: searchRegex },
-        { technicianName: searchRegex },
-        { serviceArea: searchRegex },
-      ];
-    }
-
-    const sortOptions: Record<string, 1 | -1> = {
-      newest: -1,
-      "price-low": 1,
-      "price-high": -1,
-    };
-
-    const sortField =
-      sort === "price-low" || sort === "price-high"
-        ? "basePrice"
-        : "createdAt";
-
-    const sortDirection = sortOptions[sort] || -1;
-
-    const [services, total] = await Promise.all([
-      database
-        .collection("services")
-        .find(filter)
-        .sort({ [sortField]: sortDirection })
-        .skip(skip)
-        .limit(limit)
-        .toArray(),
-      database.collection("services").countDocuments(filter),
-    ]);
 
     res.status(200).json({
       success: true,
-      count: services.length,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-        hasNextPage: skip + services.length < total,
-        hasPreviousPage: page > 1,
-      },
-      filters: {
-        search: search || null,
-        category: category || null,
-        serviceMode: serviceMode || null,
-        serviceArea: serviceArea || null,
-        sort,
-      },
-      data: services,
+      data: service,
     });
   } catch (error) {
-    console.error("Get public services error:", error);
+    console.error("Get service details error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Unable to retrieve services.",
+      message: "Unable to retrieve service details.",
     });
   }
 });
