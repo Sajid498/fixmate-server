@@ -10,6 +10,18 @@ const uploadSchema = z.object({
   name: z.string().trim().max(100).optional(),
 });
 
+interface ImgBBResponse {
+  success?: boolean;
+  data?: {
+    url?: string;
+    display_url?: string;
+    delete_url?: string;
+  };
+  error?: {
+    message?: string;
+  };
+}
+
 router.post("/image", authenticate, async (req, res) => {
   try {
     const validation = uploadSchema.safeParse(req.body);
@@ -33,6 +45,7 @@ router.post("/image", authenticate, async (req, res) => {
     }
 
     const imageValue = validation.data.image;
+
     const dataUriMatch = imageValue.match(
       /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/,
     );
@@ -58,7 +71,10 @@ router.post("/image", authenticate, async (req, res) => {
 
     const imageBuffer = Buffer.from(base64Image, "base64");
 
-    if (imageBuffer.length === 0 || imageBuffer.length > 5 * 1024 * 1024) {
+    if (
+      imageBuffer.length === 0 ||
+      imageBuffer.length > 5 * 1024 * 1024
+    ) {
       res.status(400).json({
         success: false,
         message: "Image size must be between 1 byte and 5 MB.",
@@ -84,7 +100,7 @@ router.post("/image", authenticate, async (req, res) => {
       },
     );
 
-    const result = await response.json();
+    const result = (await response.json()) as ImgBBResponse;
 
     if (!response.ok || !result.success || !result.data?.url) {
       console.error("ImgBB upload failed:", result);

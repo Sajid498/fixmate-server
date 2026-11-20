@@ -58,6 +58,14 @@ export function getDatabase(): Db {
   return database;
 }
 
+export function getMongoClient(): MongoClient {
+  if (!database) {
+    throw new Error("Database is not connected. Call connectDatabase first.");
+  }
+
+  return client;
+}
+
 export async function closeDatabase(): Promise<void> {
   await client.close();
   database = null;

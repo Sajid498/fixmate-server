@@ -358,26 +358,56 @@ router.get(
         paymentsCollection
           .aggregate([
             {
+              $match: {
+                paymentStatus: "paid",
+              },
+            },
+            {
               $group: {
-                _id: null,
-                totalRevenue: { $sum: "$amount" },
-                totalTransactions: { $sum: 1 },
+                _id: {
+                  $toUpper: {
+                    $ifNull: ["$currency", "USD"],
+                  },
+                },
+                totalRevenue: {
+                  $sum: "$amount",
+                },
+                totalTransactions: {
+                  $sum: 1,
+                },
+              },
+            },
+            {
+              $sort: {
+                _id: 1,
               },
             },
           ])
           .toArray(),
       ]);
 
-      const totals = summary[0] || {
-        totalRevenue: 0,
-        totalTransactions: 0,
-      };
+      const revenueByCurrency = summary.map((item) => ({
+        currency: String(item._id),
+        totalRevenue: Number(item.totalRevenue || 0),
+        totalTransactions: Number(item.totalTransactions || 0),
+      }));
+
+      const totalTransactions = revenueByCurrency.reduce(
+        (total, item) => total + item.totalTransactions,
+        0,
+      );
+
+      const totalRevenue =
+        revenueByCurrency.length === 1
+          ? (revenueByCurrency[0]?.totalRevenue ?? null)
+          : null;
 
       res.status(200).json({
         success: true,
         count: payments.length,
-        totalRevenue: totals.totalRevenue,
-        totalTransactions: totals.totalTransactions,
+        totalRevenue,
+        totalTransactions,
+        revenueByCurrency,
         data: payments,
       });
     } catch (error) {

@@ -10,6 +10,7 @@ import technicianBookingRoutes from "./routes/technician-booking.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import serviceRoutes from "./routes/service.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import paymentRoutes, { ensurePaymentIndexes } from "./routes/payment.routes.js";
 import {
   closeDatabase,
   connectDatabase,
@@ -38,6 +39,7 @@ app.use(
     legacyHeaders: false,
   }),
 );
+
 app.use("/api/uploads", uploadRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -63,10 +65,12 @@ app.use("/api/services", serviceRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/technician/bookings", technicianBookingRoutes);
+app.use("/api/payments", paymentRoutes);
 
 async function startServer(): Promise<void> {
   try {
     await connectDatabase();
+    await ensurePaymentIndexes();
 
     const server = app.listen(port, () => {
       console.log(`FixMate server running on port ${port}`);
