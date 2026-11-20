@@ -1,16 +1,22 @@
+
 {
   "name": "fixmate-server",
   "version": "1.0.0",
-  "description": "",
+  "description": "FixMate repair service platform backend",
   "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test tests/*.test.ts",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
+  "keywords": [
+    "fixmate",
+    "repair-service",
+    "express",
+    "mongodb"
+  ],
   "author": "",
   "license": "ISC",
   "type": "module",
@@ -32,6 +38,8 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.6",
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.1.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
