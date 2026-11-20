@@ -11,6 +11,10 @@ import adminRoutes from "./routes/admin.routes.js";
 import serviceRoutes from "./routes/service.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
+import {
+  apiErrorHandler,
+  apiNotFoundHandler,
+} from "./middleware/error-handler.js";
 
 const app = express();
 
@@ -51,7 +55,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.get("/", (_req, res) => {
   res.status(200).json({
@@ -78,35 +82,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/technician/bookings", technicianBookingRoutes);
 app.use("/api/payments", paymentRoutes);
 
-app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "API endpoint not found.",
-  });
-});
-
-app.use(
-  (
-    error: unknown,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
-    console.error("Unhandled API error:", error);
-
-    if (error instanceof Error && error.message.includes("CORS")) {
-      res.status(403).json({
-        success: false,
-        message: "Origin not allowed.",
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Internal server error.",
-    });
-  },
-);
+app.use(apiNotFoundHandler);
+app.use(apiErrorHandler);
 
 export default app;
