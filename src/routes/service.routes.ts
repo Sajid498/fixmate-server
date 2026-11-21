@@ -39,7 +39,9 @@ const getUser = (res: {
     role: "customer" | "technician" | "admin";
   };
 
-const getServiceId = (value: string | string[] | undefined): string | null => {
+const getServiceId = (
+  value: string | string[] | undefined,
+): string | null => {
   if (typeof value !== "string" || !ObjectId.isValid(value)) {
     return null;
   }
@@ -47,6 +49,7 @@ const getServiceId = (value: string | string[] | undefined): string | null => {
   return value;
 };
 
+// Create a service (Technician only)
 router.post(
   "/",
   authenticate,
@@ -98,6 +101,7 @@ router.post(
   },
 );
 
+// Get services belonging to the logged-in technician
 router.get(
   "/mine",
   authenticate,
@@ -129,22 +133,115 @@ router.get(
   },
 );
 
-router.get("/", async (_req, res) => {
+// Get public services with server-side search, filters, sorting and pagination
+router.get("/", async (req, res) => {
   try {
+    const querySchema = z.object({
+      search: z.string().trim().max(100).optional(),
+      category: z.enum(serviceCategories).optional(),
+      serviceMode: z.enum(["Home Visit", "Shop Drop-off"]).optional(),
+      serviceArea: z.string().trim().max(120).optional(),
+      sort: z
+        .enum(["newest", "price-low", "price-high"])
+        .default("newest"),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(50).default(12),
+    });
+
+    const validation = querySchema.safeParse(req.query);
+
+    if (!validation.success) {
+      res.status(400).json({
+        success: false,
+        message:
+          validation.error.issues[0]?.message ||
+          "Invalid search parameters.",
+      });
+      return;
+    }
+
+    const {
+      search,
+      category,
+      serviceMode,
+      serviceArea,
+      sort,
+      page,
+      limit,
+    } = validation.data;
+
     const database = getDatabase();
 
-    const services = await database
-      .collection("services")
-      .find({
-        approvalStatus: "approved",
-        isAvailable: true,
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
+    // Escape special regex characters in user input.
+    const escapeRegex = (value: string) =>
+      value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // Only approved and available services are publicly visible.
+    const filter: Record<string, unknown> = {
+      approvalStatus: "approved",
+      isAvailable: true,
+    };
+
+    // Search by service title or category.
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+
+      filter.$or = [
+        { title: searchRegex },
+        { category: searchRegex },
+      ];
+    }
+
+    // Filter by category.
+    if (category) {
+      filter.category = category;
+    }
+
+    // Filter by service mode.
+    if (serviceMode) {
+      filter.serviceMode = serviceMode;
+    }
+
+    // Filter by service area.
+    if (serviceArea) {
+      filter.serviceArea = new RegExp(escapeRegex(serviceArea), "i");
+    }
+
+    // Server-side sorting.
+    const sortOptions = {
+      newest: { createdAt: -1 as const },
+      "price-low": { basePrice: 1 as const },
+      "price-high": { basePrice: -1 as const },
+    };
+
+    const skip = (page - 1) * limit;
+
+    // Fetch matching services and count matching documents.
+    const [services, total] = await Promise.all([
+      database
+        .collection("services")
+        .find(filter)
+        .sort(sortOptions[sort])
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+
+      database.collection("services").countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      count: services.length,
+      count: total,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1 && total > 0,
+      },
       data: services,
     });
   } catch (error) {
@@ -157,7 +254,7 @@ router.get("/", async (_req, res) => {
   }
 });
 
-
+// Get a single approved service by ID
 router.get("/:id", async (req, res) => {
   try {
     const serviceId = getServiceId(req.params.id);
@@ -200,7 +297,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-
+// Update a technician's own service
 router.put(
   "/:id",
   authenticate,
@@ -267,6 +364,7 @@ router.put(
   },
 );
 
+// Delete a technician's own service
 router.delete(
   "/:id",
   authenticate,
@@ -314,6 +412,7 @@ router.delete(
   },
 );
 
+// Toggle service availability
 router.patch(
   "/:id/availability",
   authenticate,
