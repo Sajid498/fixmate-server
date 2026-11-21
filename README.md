@@ -1,26 +1,34 @@
+# FixMate – Backend REST API
 
-# FixMate – Backend API
+This repository contains the backend REST API for FixMate, a smart device and home appliance repair platform.
 
-FixMate is a full-stack smart device and home appliance repair service platform. This repository contains the backend REST API responsible for authentication integration, user management, service management, repair bookings, technician workflows, administrator operations, image uploads, and payment processing.
+The backend handles service management, repair bookings, user and role management, technician workflows, image uploads, and payment processing.
 
 ## Live API
 
-- Backend API: To be added after deployment.
-- Health Check: `/api/health`
+- **Backend API:** https://fixmate-server-fqv6.onrender.com
+- **Health Check:** https://fixmate-server-fqv6.onrender.com/api/health
+
+## Repository Links
+
+- **Backend:** https://github.com/Sajid498/fixmate-server
+- **Frontend:** https://github.com/Sajid498/fixmate-client
+- **Live Frontend:** https://fixmate-client-mu.vercel.app
 
 ## Technology Stack
 
-- Node.js
-- Express.js
-- TypeScript
-- MongoDB Atlas
-- Better Auth JWT integration
-- JSON Web Tokens
-- Stripe
-- ImgBB
-- Zod
-- Helmet
-- Express Rate Limit
+| Category | Technologies |
+|---|---|
+| Runtime | Node.js |
+| Framework | Express.js |
+| Language | TypeScript |
+| Database | MongoDB Atlas |
+| Authentication | Better Auth JWT integration |
+| Authorization | Role-based middleware |
+| Payments | Stripe |
+| Image Hosting | ImgBB |
+| Validation | Zod |
+| Security | Helmet, Express Rate Limit |
 
 ## Main Features
 
@@ -29,6 +37,7 @@ FixMate is a full-stack smart device and home appliance repair service platform.
 - Role-based authorization.
 - Customer, technician, and administrator access control.
 - Protected API endpoints.
+- Ownership verification for protected resources.
 
 ### User Management
 - Retrieve authenticated user profiles.
@@ -42,7 +51,7 @@ FixMate is a full-stack smart device and home appliance repair service platform.
 - Update and delete owned services.
 - Manage service availability.
 - Administrator service approval and rejection.
-- Search, filter, sorting, and pagination.
+- Search, filtering, sorting, and pagination support.
 
 ### Booking Management
 - Customer repair requests.
@@ -56,6 +65,7 @@ FixMate is a full-stack smart device and home appliance repair service platform.
 ### Payment Management
 - Stripe Checkout session creation.
 - Stripe payment verification.
+- Stripe webhook handling.
 - Development-only payment simulation.
 - Duplicate payment prevention.
 - Atomic MongoDB payment recording.
@@ -63,46 +73,53 @@ FixMate is a full-stack smart device and home appliance repair service platform.
 - Administrator payment reporting grouped by currency.
 
 ### Image Upload
-- ImgBB image upload integration.
+- ImgBB image hosting integration.
 - Authenticated image upload endpoint.
 
-## API Routes
+## API Endpoints
+
+The following table summarizes the main API endpoints.
 
 | Method | Endpoint | Purpose |
 |---|---|---|
 | GET | `/api/health` | Backend and database health |
-| GET | `/api/users/me` | Retrieve profile |
+| GET | `/api/users/me` | Retrieve authenticated profile |
 | PATCH | `/api/users/me` | Update profile |
 | GET | `/api/services` | Browse approved services |
-| GET | `/api/services/:id` | Service details |
-| POST | `/api/services` | Create service |
-| GET | `/api/services/mine` | Technician services |
-| PUT | `/api/services/:id` | Update service |
-| DELETE | `/api/services/:id` | Delete service |
-| PATCH | `/api/services/:id/availability` | Update availability |
-| POST | `/api/bookings` | Create repair booking |
-| GET | `/api/bookings/mine` | Customer bookings |
-| PATCH | `/api/bookings/:id/cancel` | Cancel booking |
-| GET | `/api/technician/bookings` | Technician bookings |
+| GET | `/api/services/:id` | Retrieve service details |
+| POST | `/api/services` | Create a service |
+| GET | `/api/services/mine` | Retrieve technician's services |
+| PUT | `/api/services/:id` | Update owned service |
+| DELETE | `/api/services/:id` | Delete owned service |
+| PATCH | `/api/services/:id/availability` | Update service availability |
+| POST | `/api/bookings` | Create a repair booking |
+| GET | `/api/bookings/mine` | Retrieve customer bookings |
+| PATCH | `/api/bookings/:id/cancel` | Cancel an eligible booking |
+| GET | `/api/technician/bookings` | Retrieve technician bookings |
 | PATCH | `/api/technician/bookings/:id/status` | Update booking status |
-| POST | `/api/payments/create-checkout-session` | Create checkout |
-| GET | `/api/payments/verify` | Verify Stripe payment |
+| POST | `/api/payments/create-checkout-session` | Create Stripe Checkout session |
+| GET | `/api/payments/verify` | Verify payment |
+| POST | `/api/payments/webhook` | Process Stripe webhook events |
 | POST | `/api/payments/development/confirm` | Confirm simulated payment |
-| GET | `/api/payments/mine` | Customer payment history |
+| GET | `/api/payments/mine` | Retrieve customer payment history |
 | POST | `/api/uploads/image` | Upload an image |
 
-Administrator routes are available under `/api/admin`.
+Administrator endpoints are grouped under `/api/admin`.
+
+Protected endpoints require valid authentication and the appropriate role or resource ownership.
 
 ## Database Structure
 
-The application uses MongoDB with four main business collections:
+FixMate uses MongoDB with four main business collections:
 
-- `users`
-- `services`
-- `bookings`
-- `payments`
+| Collection | Purpose |
+|---|---|
+| `users` | Customer, technician, and administrator information |
+| `services` | Repair service information and approval status |
+| `bookings` | Customer repair requests and booking progress |
+| `payments` | Payment records and transaction information |
 
-Better Auth may also use its supporting authentication collections.
+Better Auth may also use supporting authentication collections.
 
 ## Project Structure
 
@@ -130,12 +147,19 @@ fixmate-server/
 └── README.md
 ```
 
-## Installation
+## Getting Started
+
+### Prerequisites
+
+- Node.js and npm.
+- MongoDB Atlas account or a compatible MongoDB instance.
+- Stripe test account for payment testing.
+- ImgBB API key for image uploads.
 
 ### 1. Clone the repository
 
 ```bash
-git clone YOUR_BACKEND_REPOSITORY_URL
+git clone https://github.com/Sajid498/fixmate-server.git
 cd fixmate-server
 ```
 
@@ -149,33 +173,46 @@ npm install
 
 Create a `.env` file in the project root.
 
+Use the repository's `.env.example` as the source of truth for the complete list of required variables.
+
+The following illustrates the main configuration values:
+
 ```env
 NODE_ENV=development
 PORT=5000
+
 CLIENT_URL=http://localhost:3000
-MONGODB_URI=YOUR_MONGODB_CONNECTION_STRING
 BETTER_AUTH_URL=http://localhost:3000
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-IMGBB_API_KEY=
+
+MONGODB_URI=YOUR_MONGODB_CONNECTION_STRING
+
+STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET=YOUR_STRIPE_WEBHOOK_SECRET
+
+IMGBB_API_KEY=YOUR_IMGBB_API_KEY
+
 PAYMENT_MODE=development
 PAYMENT_DEV_SIMULATOR=true
 PAYMENT_CURRENCY=bdt
 ```
 
-Use a strong authentication secret consistent with the frontend configuration wherever required by the authentication setup.
+**Security notes:**
+- Use strong secrets and valid service credentials.
+- Never commit `.env` files.
+- Do not expose Stripe secret keys, webhook secrets, or MongoDB credentials.
+- Use Stripe test credentials during development.
+- Disable the development payment simulator in production.
+- Configure the frontend origin correctly for CORS.
 
-Never commit `.env` files or expose API keys.
-
-### 4. Start development server
+### 4. Start the development server
 
 ```bash
 npm run dev
 ```
 
-The backend runs at:
+The local API is available at:
 
-http://localhost:5000
+`http://localhost:5000`
 
 ### 5. Build for production
 
@@ -183,7 +220,7 @@ http://localhost:5000
 npm run build
 ```
 
-### 6. Start production server
+### 6. Start the production server
 
 ```bash
 npm start
@@ -191,27 +228,34 @@ npm start
 
 ## Database Seeding
 
-The project includes an idempotent demo seed script.
+The repository includes a demo seed script at:
 
-Before running it, create:
+`scripts/seed.ts`
 
-- Two technician accounts.
-- One customer account.
+Prepare the required registered accounts before running the seed script:
 
-Then run:
+- At least two technician accounts.
+- At least one customer account.
+
+Run:
 
 ```bash
 npx tsx scripts/seed.ts
 ```
 
-The script creates 12 approved demo services and five sample bookings with different statuses. It uses existing registered accounts and preserves existing records.
+According to the seed script's intended setup, it creates:
+
+- 12 approved demonstration services.
+- Five sample bookings with different statuses.
+
+Review the seed script before running it against an existing production database. Confirm its account matching and duplicate-handling behavior, and use dedicated demonstration accounts.
 
 ## Booking Status Workflow
 
 ```text
 requested
     |
-    +----> rejected
+    +------> rejected
     |
     v
  accepted
@@ -220,44 +264,77 @@ requested
 in-progress
     |
     v
-completed
+ completed
     |
     v
-payment
+  payment
 ```
 
-Customers can cancel bookings only while they are requested.
+Booking transitions are validated by the backend.
+
+- Customers can cancel only bookings that are still `requested`.
+- Technicians manage the status of their own bookings.
+- A final repair amount is required for completion.
+- Payment is available only for eligible completed bookings.
 
 ## Payment Configuration
 
-The backend supports Stripe Checkout and a development-only payment simulator.
+FixMate supports Stripe Checkout and a development-only payment simulator.
 
-- Stripe mode requires valid Stripe credentials.
-- Development simulation is restricted to non-production environments.
-- Payment amounts are determined by the booking stored in MongoDB.
+### Stripe Payment Mode
+
+Configure the Stripe secret key and webhook signing secret in the backend environment.
+
+The deployed webhook endpoint is:
+
+`https://fixmate-server-fqv6.onrender.com/api/payments/webhook`
+
+The Stripe destination should be configured to send the required Checkout completion event to this endpoint.
+
+### Payment Safety
+
+- Payment amounts are determined by server-side booking data.
+- Payment verification is performed by the backend.
 - Duplicate payments are prevented.
-- Payment records and booking payment status are updated atomically.
-
-Never enable the development simulator in production.
+- Payment and booking updates use atomic database operations.
+- The development simulator must not be enabled in production.
 
 ## Deployment
 
-The backend can be deployed to a Node.js hosting platform such as Render.
+The backend is deployed on Render.
 
-Deployment requirements:
+- **Production API:** https://fixmate-server-fqv6.onrender.com
+- **Health Check:** https://fixmate-server-fqv6.onrender.com/api/health
+
+### Deployment Checklist
 
 1. Configure the production MongoDB connection.
-2. Configure authentication URLs and secrets.
-3. Configure the frontend origin in `CLIENT_URL`.
-4. Configure Stripe credentials if Stripe payments are enabled.
-5. Configure ImgBB credentials.
-6. Disable the development simulator in production.
-7. Verify the `/api/health` endpoint.
+2. Set the correct production environment variables.
+3. Configure authentication URLs and secrets.
+4. Allow the deployed frontend origin.
+5. Configure Stripe credentials and webhook signing secret.
+6. Configure ImgBB credentials.
+7. Disable the development payment simulator.
+8. Verify the health endpoint.
+9. Test authentication, service management, bookings, and payments.
 
-## Related Repository
+## Demo Accounts
 
-Frontend repository: To be added.
+Use dedicated demonstration accounts for evaluation.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | Add verified demo email | Share securely |
+| Technician | Add verified demo email | Share securely |
+| Customer | Add verified demo email | Share securely |
+
+Provide working demonstration credentials to the evaluator through the required submission channel. Do not publish private production credentials in this repository.
 
 ## Project Status
 
-Development and implementation are in progress. Final end-to-end testing, production configuration, and deployment will be completed before submission.
+The FixMate backend is deployed and connected to the production frontend.
+
+- API: https://fixmate-server-fqv6.onrender.com
+- Frontend: https://fixmate-client-mu.vercel.app
+- Source code: https://github.com/Sajid498/fixmate-server
+
