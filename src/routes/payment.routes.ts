@@ -1,6 +1,6 @@
 
 import { randomUUID } from "node:crypto";
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { ObjectId, type ClientSession } from "mongodb";
 import Stripe from "stripe";
 import { getDatabase, getMongoClient } from "../config/database.js";
@@ -10,6 +10,7 @@ import { authorize } from "../middleware/authorize.js";
 const router = Router();
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
 const paymentMode = process.env.PAYMENT_MODE || "stripe";
 const simulatorEnabled = process.env.PAYMENT_DEV_SIMULATOR === "true";
@@ -242,6 +243,161 @@ function sendPaymentError(
     success: false,
     message: fallbackMessage,
   });
+}
+
+/**
+ * Handles Stripe Checkout webhook events.
+ * This handler must receive the original raw request body; mount it before
+ * express.json() in app.ts using express.raw({ type: "application/json" }).
+ */
+export async function handleStripeWebhook(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  if (!stripe || !stripeWebhookSecret) {
+    res.status(503).json({
+      success: false,
+      message: "Stripe webhook is not configured.",
+    });
+    return;
+  }
+
+  const signature = req.headers["stripe-signature"];
+
+  if (typeof signature !== "string" || !Buffer.isBuffer(req.body)) {
+    res.status(400).json({
+      success: false,
+      message: "Missing Stripe signature or invalid request body.",
+    });
+    return;
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      signature,
+      stripeWebhookSecret,
+    );
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed:", error);
+    res.status(400).json({
+      success: false,
+      message: "Invalid Stripe webhook signature.",
+    });
+    return;
+  }
+
+  if (
+    event.type !== "checkout.session.completed" &&
+    event.type !== "checkout.session.async_payment_succeeded"
+  ) {
+    res.status(200).json({ received: true, message: "Event ignored." });
+    return;
+  }
+
+  try {
+    const session = event.data.object as Stripe.Checkout.Session;
+
+    if (
+      session.mode !== "payment" ||
+      session.status !== "complete" ||
+      session.payment_status !== "paid"
+    ) {
+      // A completed event that is not paid is acknowledged but not recorded.
+      res.status(200).json({
+        received: true,
+        message: "Checkout session is not paid.",
+      });
+      return;
+    }
+
+    const bookingId = session.metadata?.bookingId;
+    const customerEmail = session.metadata?.customerEmail;
+
+    if (
+      !bookingId ||
+      !ObjectId.isValid(bookingId) ||
+      !customerEmail ||
+      session.client_reference_id !== bookingId ||
+      (session.customer_email &&
+        session.customer_email.toLowerCase() !== customerEmail.toLowerCase()) ||
+      (session.customer_details?.email &&
+        session.customer_details.email.toLowerCase() !== customerEmail.toLowerCase())
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid booking or customer information in Stripe session.",
+      });
+      return;
+    }
+
+    const booking = await findOwnedCompletedBooking(bookingId, customerEmail);
+
+    if (!booking) {
+      // Do not acknowledge a potentially temporary database/booking race.
+      // Stripe can retry this event after the booking becomes available.
+      res.status(500).json({
+        success: false,
+        message: "The associated completed booking could not be verified.",
+      });
+      return;
+    }
+
+    const expectedAmount = getAmountInMinorUnits(booking.finalAmount);
+
+    if (
+      expectedAmount === null ||
+      session.amount_total !== expectedAmount ||
+      session.currency !== paymentCurrency
+    ) {
+      console.error("Stripe webhook payment amount or currency mismatch:", {
+        bookingId,
+        sessionId: session.id,
+      });
+      res.status(400).json({
+        success: false,
+        message: "Payment amount or currency does not match the booking.",
+      });
+      return;
+    }
+
+    const transactionId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id || session.id;
+
+    const payment: PaymentDocument = {
+      bookingId,
+      serviceTitle: booking.serviceTitle,
+      customerName: booking.customerName || customerEmail,
+      customerEmail,
+      technicianName: booking.technicianName || "",
+      technicianEmail: booking.technicianEmail || "",
+      amount: Number(booking.finalAmount),
+      currency: paymentCurrency,
+      transactionId,
+      stripeSessionId: session.id,
+      paymentProvider: "stripe",
+      paymentStatus: "paid",
+      paidAt: new Date(),
+    };
+
+    await recordPaymentAtomically(bookingId, customerEmail, payment);
+
+    res.status(200).json({
+      received: true,
+      message: "Stripe payment webhook processed successfully.",
+    });
+  } catch (error) {
+    // Return 500 so Stripe retries transient database/transaction failures.
+    console.error("Stripe webhook processing error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Unable to process Stripe webhook.",
+    });
+  }
 }
 
 router.post(

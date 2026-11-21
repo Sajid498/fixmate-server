@@ -10,7 +10,9 @@ import technicianBookingRoutes from "./routes/technician-booking.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import serviceRoutes from "./routes/service.routes.js";
 import userRoutes from "./routes/user.routes.js";
-import paymentRoutes from "./routes/payment.routes.js";
+import paymentRoutes, {
+  handleStripeWebhook,
+} from "./routes/payment.routes.js";
 import {
   apiErrorHandler,
   apiNotFoundHandler,
@@ -54,6 +56,15 @@ app.use(
   }),
 );
 
+// Stripe webhook must receive the original raw request body.
+// Keep this route BEFORE express.json().
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook,
+);
+
+// Regular JSON parsing for all other API routes.
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
